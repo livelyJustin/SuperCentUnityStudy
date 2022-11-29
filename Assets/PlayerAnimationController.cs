@@ -7,24 +7,42 @@ public class PlayerAnimationController : MonoBehaviour
     [SerializeField] Animator playerAnimator;
     [SerializeField] CameraShake camShake;
     [SerializeField] GunManager gun;
-    [SerializeField] int bullet;
-    [SerializeField] int max_bullet = 7;
-    [SerializeField] float weaponDmg = 0;
-    // [SerializeField] Transform cam => Camera.main.transform;
+    private bool isShooting, isReloading = false;
+    private bool moveOn = false;
+    private bool isActiveIdle = true;
+    private float weaponDmg = 0;
+    [SerializeField] private float speed = 1;
+    [SerializeField] private float speedadjust = 0.01f;
+    private float timer = 0;
+    [SerializeField] private float radius = 3;
+    private int enemyLayer;
+    private int wallLayer;
+    [SerializeField] private int bullet;
+    [SerializeField] private int max_bullet = 7;
+    [SerializeField] Transform spineTr;
+    private Vector3 moveDir;
+    private Vector3 FirstTouch;
+    private Vector3 LastTouch;
+    private Ray ray;
+    private RaycastHit hit;
+    private WaitForSeconds wfs = new WaitForSeconds(1.2f);
 
-
-    // Vector3 camPos;
+    private int hash_RunSpeed, hash_Shoot, hash_Reload, hash_Idle, hash_LookAround;
     void Start()
     {
         StartCoroutine(CallRendonAnimaition());
         bullet = max_bullet;
-        // camPos = cam.position;
         enemyLayer = 1 << LayerMask.NameToLayer("Enemy");
         wallLayer = 1 << LayerMask.NameToLayer("Wall");
+        #region  Animator Hash Setting
+        hash_RunSpeed = Animator.StringToHash("RunSpeed");
+        hash_Shoot = Animator.StringToHash("Shoot");
+        hash_Reload = Animator.StringToHash("Reload");
+        hash_Idle = Animator.StringToHash("Idle");
+        hash_LookAround = Animator.StringToHash("LookAround");
+        #endregion
 
         spineTr = transform.GetComponent<Animator>().GetBoneTransform(HumanBodyBones.UpperChest);
-        //var hash_Shoot = playerAnimator.StringToHash("RunSpeed");
-        //var statinfo = playerAnimator.GetCurrentAnimatorClipInfo(0); // 실시간 갱신, 애니메이션은 한 프레임 늦게 됨
         //statinfo.isTag; // 
         //if(statinfo.shortNameHash == hash_Shoot) // hash의 이름만. full path( .idle 까지)
         //{
@@ -32,29 +50,8 @@ public class PlayerAnimationController : MonoBehaviour
         //}
     }
 
-    Vector3 dir;
-    bool moveOn = false;
-    [SerializeField] float speed = 1;
-    [SerializeField] float timer = 0;
-    Ray ray;
-    RaycastHit hit;
-    [SerializeField] private Vector3 FirstTouch;
-    [SerializeField] private Vector3 LastTouch;
-    bool isShooting, isReloading = false;
     void Update()
     {
-        if (Input.GetKeyDown(KeyCode.R))
-        {
-            isActiveIdle = false ? true : false;
-            ResetAnimation();
-        }
-
-        // move
-        if (Input.GetKey(KeyCode.Mouse0))
-            moveOn = true;
-        else
-            moveOn = false;
-
         if (Input.GetMouseButtonDown(0))
         {
             FirstTouch.x = Input.mousePosition.x;
@@ -62,24 +59,26 @@ public class PlayerAnimationController : MonoBehaviour
         }
         if (Input.GetMouseButton(0))
         {
+            moveOn = true;
             LastTouch.x = Input.mousePosition.x;
             LastTouch.y = Input.mousePosition.y;
-
-            float angle = Mathf.Atan2(LastTouch.x - FirstTouch.x, LastTouch.y - FirstTouch.y) * Mathf.Rad2Deg;
-            transform.rotation = Quaternion.Euler(new Vector3(transform.rotation.x, angle, transform.rotation.z));
+            moveDir = LastTouch - FirstTouch;
         }
+        else if (Input.GetMouseButtonUp(0))
+            moveOn = false;
 
         if (Input.GetKeyDown(KeyCode.Space) && !isShooting)
             StartCoroutine(Shoot());
-
     }
 
     private void FixedUpdate()
     {
         if (moveOn == true)
-            Move();
+            Move(moveDir);
         else
             ResetMove();
+
+        RotatebyMouse();
     }
 
     private void LateUpdate()
@@ -87,12 +86,11 @@ public class PlayerAnimationController : MonoBehaviour
         DetectEnemy();
     }
 
-    WaitForSeconds wfs = new WaitForSeconds(1.2f);
     IEnumerator Shoot() // reload 시 쏘지 않기
     {
         isShooting = true;
         ResetAnimation();
-        playerAnimator.SetBool("Shoot", true);
+        playerAnimator.SetBool(hash_Shoot, true);
 
         StartCoroutine(camShake.DoShake()); // 카메라 쉐이크 처리
         bullet--;
@@ -101,39 +99,57 @@ public class PlayerAnimationController : MonoBehaviour
         {
             isReloading = true;
             bullet = 0;
-            playerAnimator.SetTrigger("Reload");
+            playerAnimator.SetTrigger(hash_Reload);
         }
         yield return wfs;
         ResetShootAnimation();
     }
 
-    void Move()
+    // void Move()
+    // {
+    //     // timer += Time.deltaTime;
+    //     // ResetAnimation();
+    //     // if (timer >= 1)
+    //     //     speed = timer >= 3 ? 3 : timer;
+
+    //     // ray = Camera.main.ScreenPointToRay(Input.mousePosition);
+    //     // if (Physics.Raycast(ray, out hit))
+    //     //     dir = hit.point - transform.position;
+
+    //     // transform.Translate(dir * speed * Time.deltaTime, Space.World);
+    //     // playerAnimator.SetFloat(hash_RunSpeed, speed);
+    // }
+
+    void Move(Vector3 dir)
     {
         timer += Time.deltaTime;
         ResetAnimation();
         if (timer >= 1)
             speed = timer >= 3 ? 3 : timer;
 
-        ray = Camera.main.ScreenPointToRay(Input.mousePosition);
-        if (Physics.Raycast(ray, out hit))
-            dir = hit.point - transform.position;
-
-        transform.Translate(dir * speed * Time.deltaTime, Space.World);
-        playerAnimator.SetFloat("RunSpeed", speed);
+        // ray = Camera.main.ScreenPointToRay(Input.mousePosition);
+        // if (Physics.Raycast(ray, out hit))
+        //     dir = hit.point - transform.position;    
+        var temp = new Vector3(dir.x, transform.position.y, dir.y);
+        transform.Translate(temp * (speed * speedadjust) * Time.deltaTime, Space.World);
+        playerAnimator.SetFloat(hash_RunSpeed, speed);
     }
 
     void ResetMove()
     {
-        playerAnimator.SetFloat("RunSpeed", 0);
+        playerAnimator.SetFloat(hash_RunSpeed, 0);
         speed = 1;
         timer = 0;
     }
 
+    void RotatebyMouse()
+    {
+        float angle = Mathf.Atan2(LastTouch.x - FirstTouch.x, LastTouch.y - FirstTouch.y) * Mathf.Rad2Deg;
+        transform.rotation = Quaternion.Euler(new Vector3(transform.rotation.x, angle, transform.rotation.z));
+    }
 
-    [SerializeField] float radius = 1;
-    [SerializeField] int enemyLayer;
-    [SerializeField] int wallLayer;
-    [SerializeField] Transform spineTr;
+
+
     void DetectEnemy()
     {
         // overlap을 통해서 주변 적 감지
@@ -144,12 +160,12 @@ public class PlayerAnimationController : MonoBehaviour
             Transform closeEnemy = GetClosetEnemy(enemies);
             if (ReferenceEquals((object)closeEnemy, null))
             {
-                print($"clos is null");
+                print($"close is null");
                 return;
             }
+            Animator enemy_animator = closeEnemy.GetComponent<Animator>();
 
-            Transform targetboneTR;
-            targetboneTR = closeEnemy.GetComponent<Animator>().GetBoneTransform(HumanBodyBones.Spine);
+            Transform targetboneTR = enemy_animator.GetBoneTransform(HumanBodyBones.Spine);
             if (ReferenceEquals((object)targetboneTR, null))
             {
                 print($"targetboneTR is null");
@@ -157,6 +173,7 @@ public class PlayerAnimationController : MonoBehaviour
             }
 
             spineTr.LookAt(targetboneTR); // lookrotation 으로 방향을 구해서 사용
+
             // 항상 바라보는 타겟을 생성하고, LookAt을 통해 타겟을 항상 바라보고, 적의 위치에 따라 타겟을 따라가게
 
             // 총 쏘기
@@ -179,7 +196,8 @@ public class PlayerAnimationController : MonoBehaviour
         float closeDistance = 1000;
         for (int i = 0; i < enemies.Length; i++)
         {
-            if (!Physics.Linecast(spineTr.position, enemies[i].transform.position, wallLayer)) // 벽이 있는지 체크 원점이 발일 수 있음
+            var normalize = enemies[i].transform.position + new Vector3(0, 0.5f, 0);
+            if (!Physics.Linecast(spineTr.position, (normalize), wallLayer)) // 벽이 있는지 체크 원점이 발일 수 있음
             {
                 float curDistance = Vector3.Distance(transform.position, enemies[i].transform.position);
                 if (closeDistance > curDistance)
@@ -204,7 +222,6 @@ public class PlayerAnimationController : MonoBehaviour
     }
 
 
-    bool isActiveIdle = true;
     WaitForSeconds waitflag2 = new WaitForSeconds(2);
     IEnumerator CallRendonAnimaition()
     {
@@ -216,13 +233,13 @@ public class PlayerAnimationController : MonoBehaviour
             {
                 case 0:
                     {
-                        playerAnimator.SetBool("Idle", true);
-                        playerAnimator.SetBool("LookAround", false); break;
+                        playerAnimator.SetBool(hash_Idle, true);
+                        playerAnimator.SetBool(hash_LookAround, false); break;
                     }
                 case 1:
                     {
-                        playerAnimator.SetBool("LookAround", true);
-                        playerAnimator.SetBool("Idle", false); break;
+                        playerAnimator.SetBool(hash_LookAround, true);
+                        playerAnimator.SetBool(hash_Idle, false); break;
                     }
 
                 default: print("번호가 잘못 출력됨 num: " + num); break;
@@ -235,14 +252,14 @@ public class PlayerAnimationController : MonoBehaviour
 
     private void ResetAnimation()
     {
-        playerAnimator.SetBool("Idle", false);
-        playerAnimator.SetBool("LookAround", false);
+        playerAnimator.SetBool(hash_Idle, false);
+        playerAnimator.SetBool(hash_LookAround, false);
     }
 
     private void ResetShootAnimation()
     {
         isReloading = false;
         isShooting = false;
-        playerAnimator.SetBool("Shoot", false);
+        playerAnimator.SetBool(hash_Shoot, false);
     }
 }

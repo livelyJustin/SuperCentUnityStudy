@@ -6,23 +6,19 @@ using System;
 public class Enemy : MonoBehaviour
 {
     float hp;
-    [SerializeField]
-    float HP
-    {
-        get { return hp; }
-        set { hp = value; }
-    }
-    [SerializeField] Animator enemtAnimator;
+    [SerializeField] float HP { get { return hp; } set { hp = value; } }
+    [SerializeField] Animator enemyAnimator;
     [SerializeField] Rigidbody rb;
     [SerializeField] Rigidbody[] rbs;
     [SerializeField] Collider[] cols;
     [SerializeField] Rigidbody spineRb;
     [SerializeField] Transform spine;
     [SerializeField] Collider col;
+    private int hash_Hit;
     void Start()
     {
         hp = 15;
-        spine = enemtAnimator.GetBoneTransform(HumanBodyBones.Spine);
+        spine = enemyAnimator.GetBoneTransform(HumanBodyBones.Spine);
         spineRb = spine.GetComponent<Rigidbody>();
 
         rb = GetComponent<Rigidbody>();
@@ -32,9 +28,10 @@ public class Enemy : MonoBehaviour
         SetChildRigidbody(true);
         SetChildColider(false);
 
-        // rb.isKinematic = false;
         col = transform.GetComponent<Collider>();
         col.enabled = true;
+
+        hash_Hit = Animator.StringToHash("Hit");
     }
     [SerializeField] float power = 0.001f;
     public void GotHit(float dmg, Vector3 dir)
@@ -44,7 +41,7 @@ public class Enemy : MonoBehaviour
             HP -= dmg;
             print("체력: " + HP);
             print("dir: " + dir);
-            enemtAnimator.SetTrigger("Hit");
+            enemyAnimator.SetTrigger(hash_Hit);
             if (HP <= 0)
                 Die(dir);
         }
@@ -55,15 +52,9 @@ public class Enemy : MonoBehaviour
     public void Die(Vector3 dir)
     {
         isDead = true;
-        enemtAnimator.enabled = false;
+        enemyAnimator.enabled = false;
         SetChildRigidbody(false);
         SetChildColider(true);
-        // spineRb.isKinematic = false;
-
-        // rb.isKinematic = true;
-        // col.enabled = true;
-
-        // transform.GetComponent<Collider>().enabled = true;
         spineRb.AddForce(dir * power);
 
         Destroy(this.gameObject, 3f);
