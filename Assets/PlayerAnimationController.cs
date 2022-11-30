@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.UI;
 
 public class PlayerAnimationController : MonoBehaviour
 {
@@ -20,9 +21,12 @@ public class PlayerAnimationController : MonoBehaviour
     [SerializeField] private int bullet;
     [SerializeField] private int max_bullet = 7;
     [SerializeField] Transform spineTr;
+    [SerializeField] Image joyStick_Pad;
+    [SerializeField] Image joyStick_Frame;
+    [SerializeField] CanvasGroup joyStick_Group;
     private Vector3 moveDir;
     private Vector3 FirstTouch;
-    private Vector3 LastTouch;
+    [SerializeField] private Vector3 LastTouch;
     private Ray ray;
     private RaycastHit hit;
     private WaitForSeconds wfs = new WaitForSeconds(1.2f);
@@ -49,23 +53,36 @@ public class PlayerAnimationController : MonoBehaviour
         //    // stateinfo.normalizedTime -> 0~1까지 재생한 시간
         //}
     }
-
+    // float joystick_radius => joyStick_Frame.rectTransform.rect.width * 0.5f;
+    [SerializeField] float joystick_adjust = 0.1f;
     void Update()
     {
         if (Input.GetMouseButtonDown(0))
         {
             FirstTouch.x = Input.mousePosition.x;
             FirstTouch.y = Input.mousePosition.y;
+            joyStick_Group.alpha = 1;
+            joyStick_Frame.rectTransform.position = FirstTouch;
         }
         if (Input.GetMouseButton(0))
         {
             moveOn = true;
             LastTouch.x = Input.mousePosition.x;
             LastTouch.y = Input.mousePosition.y;
+
+            // 끝나면 없애주기
+            Vector2 normal = LastTouch * joystick_adjust;
+            joyStick_Pad.rectTransform.anchoredPosition = Vector2.ClampMagnitude(normal, 100); // 시작 위치가 적절하지 않아 고쳐야함
+
+            // print($"anchored x: {joyStick_Pad.rectTransform.anchoredPosition.x} y: {joyStick_Pad.rectTransform.anchoredPosition.y} ");
+            // print($"position X: {joyStick_Pad.rectTransform.position.x} y: {joyStick_Pad.rectTransform.position.y} ");
             moveDir = LastTouch - FirstTouch;
         }
         else if (Input.GetMouseButtonUp(0))
+        {
+            joyStick_Group.alpha = 0;
             moveOn = false;
+        }
 
         if (Input.GetKeyDown(KeyCode.Space) && !isShooting)
             StartCoroutine(Shoot());
@@ -83,7 +100,7 @@ public class PlayerAnimationController : MonoBehaviour
 
     private void LateUpdate()
     {
-        DetectEnemy();
+        DetectEnemy(); // 애니메이션은 late전에 동작하기에 lateupdata에서 실행해주어야함
     }
 
     IEnumerator Shoot() // reload 시 쏘지 않기
@@ -105,21 +122,6 @@ public class PlayerAnimationController : MonoBehaviour
         ResetShootAnimation();
     }
 
-    // void Move()
-    // {
-    //     // timer += Time.deltaTime;
-    //     // ResetAnimation();
-    //     // if (timer >= 1)
-    //     //     speed = timer >= 3 ? 3 : timer;
-
-    //     // ray = Camera.main.ScreenPointToRay(Input.mousePosition);
-    //     // if (Physics.Raycast(ray, out hit))
-    //     //     dir = hit.point - transform.position;
-
-    //     // transform.Translate(dir * speed * Time.deltaTime, Space.World);
-    //     // playerAnimator.SetFloat(hash_RunSpeed, speed);
-    // }
-
     void Move(Vector3 dir)
     {
         timer += Time.deltaTime;
@@ -127,9 +129,6 @@ public class PlayerAnimationController : MonoBehaviour
         if (timer >= 1)
             speed = timer >= 3 ? 3 : timer;
 
-        // ray = Camera.main.ScreenPointToRay(Input.mousePosition);
-        // if (Physics.Raycast(ray, out hit))
-        //     dir = hit.point - transform.position;    
         var temp = new Vector3(dir.x, transform.position.y, dir.y);
         transform.Translate(temp * (speed * speedadjust) * Time.deltaTime, Space.World);
         playerAnimator.SetFloat(hash_RunSpeed, speed);
@@ -145,10 +144,8 @@ public class PlayerAnimationController : MonoBehaviour
     void RotatebyMouse()
     {
         float angle = Mathf.Atan2(LastTouch.x - FirstTouch.x, LastTouch.y - FirstTouch.y) * Mathf.Rad2Deg;
-        transform.rotation = Quaternion.Euler(new Vector3(transform.rotation.x, angle, transform.rotation.z));
+        transform.rotation = Quaternion.AngleAxis(angle, Vector3.up); // Quaternion.Euler(new Vector3(transform.rotation.x, angle, transform.rotation.z));
     }
-
-
 
     void DetectEnemy()
     {
@@ -172,7 +169,25 @@ public class PlayerAnimationController : MonoBehaviour
                 return;
             }
 
-            spineTr.LookAt(targetboneTR); // lookrotation 으로 방향을 구해서 사용
+            // spineTr.LookAt(targetboneTR); // lookrotation 으로 방향을 구해서 사용
+
+            // spineTr.rotation = Quaternion.LookRotation(targetboneTR.position - spineTr.position);
+            // Vector3 screenpointEnemy = Camera.main.WorldToScreenPoint(targetboneTR.position);
+            // Vector3 screenpointMe = Camera.main.WorldToScreenPoint(spineTr.position);
+            // Vector3 rotdir = screenpointEnemy - screenpointMe;
+            // float rotdir2 = Mathf.Atan2(rotdir.y, rotdir.x) * Mathf.Rad2Deg;
+            // Debug.Log($" rot:  {rotdir2} -rot: {-rotdir2}");
+            // // float finalAngle = rotdir2 > 180 ? -180 : rotdir2;
+            // // spineTr.rotation = Quaternion.AngleAxis(rotdir2, Vector3.forward);
+            // spineTr.transform.rotation = Quaternion.AngleAxis(-rotdir2, Vector3.up);
+            // spineTr.transform.eulerAngles = new Vector3(0, 0, Mathf.LerpAngle(spineTr.transform.eulerAngles.z, rotdir2, 1 * Time.deltaTime));
+
+            Vector3 rotdir = targetboneTR.position - spineTr.position;
+            // 왜 되는가? 3D 좌표에서랑 2D 좌표에서의 아크 탄젠트에 넣어줘야하는 값이 다르기 때문에ㅎ
+            float rotdir2 = Mathf.Atan2(rotdir.x, rotdir.z) * Mathf.Rad2Deg;
+            // spineTr.rotation = Quaternion.Euler(0, rotdir2, 0);
+            Debug.Log($" rot:  {rotdir2} -rot: {-rotdir2}");
+            spineTr.rotation = Quaternion.AngleAxis(rotdir2, Vector3.up);
 
             // 항상 바라보는 타겟을 생성하고, LookAt을 통해 타겟을 항상 바라보고, 적의 위치에 따라 타겟을 따라가게
 
