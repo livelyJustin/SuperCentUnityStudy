@@ -33,7 +33,8 @@ public class EnemyManager : MonoBehaviour
         yield return wfs2sec;
         retryGroup.alpha = 0;
         enemy_MaxCount = Enemy_Count;
-        text_EnemyCount.text = $"{enemy_Count:0}/{enemy_MaxCount:#.0}";  //string.Format("{0}/{1}", enemy_Count, enemy_MaxCount);
+        // text_EnemyCount.text = $"{enemy_Count:0}/{enemy_MaxCount:#.0}";  //string.Format("{0}/{1}", enemy_Count, enemy_MaxCount);
+        text_EnemyCount.text = string.Format("{0}/{1}", enemy_Count, enemy_MaxCount);
     }
 
 
