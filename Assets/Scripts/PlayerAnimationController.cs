@@ -12,7 +12,6 @@ public class PlayerAnimationController : MonoBehaviour
     private bool isShooting, isReloading = false;
     private bool moveOn = false;
     private bool isActiveIdle = true;
-    // private float weaponDmg = 0;
     [SerializeField] private float speed = 1;
     [SerializeField] private float speedadjust = 0.01f;
     private float timer = 0;
@@ -22,6 +21,7 @@ public class PlayerAnimationController : MonoBehaviour
     [SerializeField] private int bullet_Count;
     [SerializeField] private int max_bullet = 7;
     [SerializeField] Transform spineTr;
+
     // JoyStick Field
     [SerializeField] Image joyStick_Pad;
     [SerializeField] Image joyStick_Frame;
@@ -37,7 +37,7 @@ public class PlayerAnimationController : MonoBehaviour
     private Ray ray;
     private RaycastHit hit;
     private WaitForSeconds wfs1dot2sec = new WaitForSeconds(1.2f);
-    WaitForSeconds wfs05sec = new WaitForSeconds(0.5f);
+    private WaitForSeconds wfs05sec = new WaitForSeconds(0.5f);
 
     private int hash_RunSpeed, hash_Shoot, hash_Reload, hash_Idle, hash_LookAround;
     void Start()
@@ -118,15 +118,15 @@ public class PlayerAnimationController : MonoBehaviour
         StartCoroutine(camShake.DoShake()); // 카메라 쉐이크 처리
         bullet_Count--;
 
-
-
         if (bullet_Count <= 0 && !isReloading)
         {
             isReloading = true;
+            SoundManager.Instance.PlayOneShot(SoundList.Reload);
             bullet_Count = 0;
-            // bullet.stopBullet();
             playerAnimator.SetTrigger(hash_Reload);
+            yield break;
         }
+
         yield return wfs1dot2sec;
         ResetShootAnimation();
     }
@@ -183,17 +183,6 @@ public class PlayerAnimationController : MonoBehaviour
 
             // spineTr.LookAt(targetboneTR); // lookrotation 으로 방향을 구해서 사용
 
-            // spineTr.rotation = Quaternion.LookRotation(targetboneTR.position - spineTr.position);
-            // Vector3 screenpointEnemy = Camera.main.WorldToScreenPoint(targetboneTR.position);
-            // Vector3 screenpointMe = Camera.main.WorldToScreenPoint(spineTr.position);
-            // Vector3 rotdir = screenpointEnemy - screenpointMe;
-            // float rotdir2 = Mathf.Atan2(rotdir.y, rotdir.x) * Mathf.Rad2Deg;
-            // Debug.Log($" rot:  {rotdir2} -rot: {-rotdir2}");
-            // // float finalAngle = rotdir2 > 180 ? -180 : rotdir2;
-            // // spineTr.rotation = Quaternion.AngleAxis(rotdir2, Vector3.forward);
-            // spineTr.transform.rotation = Quaternion.AngleAxis(-rotdir2, Vector3.up);
-            // spineTr.transform.eulerAngles = new Vector3(0, 0, Mathf.LerpAngle(spineTr.transform.eulerAngles.z, rotdir2, 1 * Time.deltaTime));
-
             Vector3 rotdir = targetboneTR.position - spineTr.position;
             // 왜 되는가? 3D 좌표에서랑 2D 좌표에서의 아크 탄젠트에 넣어줘야하는 값이 다르기 때문에ㅎ
             float angle = Mathf.Atan2(rotdir.x, rotdir.z) * Mathf.Rad2Deg;
@@ -204,39 +193,12 @@ public class PlayerAnimationController : MonoBehaviour
             if (!isShooting)
             {
                 StartCoroutine(Shoot());
-                // weaponDmg = UnityEngine.Random.Range(10, 21);
-                // 방향 계산해서주기 
-                // Vector3 dir = closeEnemy.position - transform.position;
-                // closeEnemy.GetComponent<Enemy>().GotHit(weaponDmg, dir);
-                bullet.enabled = true;
+                bullet.myColider.enabled = true;
                 bullet.StartCoroutine(bullet.GoToEnemy(targetboneTR));
-                // 파티클 처리
-                // StartCoroutine(Effect_EnemyHitON(targetboneTR, rotdir2 - 180));
             }
         }
         enemies = null;
     }
-
-    // IEnumerator Effect_EnemyHitON(Transform enemyTr, float angle)
-    // {
-    //     foreach (var item in ps_Hits)
-    //     {
-    //         if (item.isPlaying == false)
-    //         {
-    //             item.transform.position = enemyTr.position;
-    //             item.transform.rotation = Quaternion.AngleAxis(angle, Vector3.up);
-    //             item.Play();
-    //         }
-    //     }
-
-    //     bullet.enabled = true;
-    //     bullet.StartCoroutine(bullet.GoToEnemy(enemyTr));
-
-    //     yield return wfs05sec;
-
-    //     foreach (var item in ps_Hits)
-    //         item.transform.position = transform.position;
-    // }
 
     // 가까운적 찾으면서 벽도 있는지 체크
     Transform GetClosetEnemy(Collider[] enemies)
@@ -257,7 +219,7 @@ public class PlayerAnimationController : MonoBehaviour
             }
             else
             {
-                print($"true? name: {enemies[i].transform.name}");
+                print($"벽뒤 녀석 name: {enemies[i].transform.name}");
                 enemies[i] = null;
             }
         }
@@ -311,5 +273,10 @@ public class PlayerAnimationController : MonoBehaviour
         // isReloading = false;
         isShooting = false;
         playerAnimator.SetBool(hash_Shoot, false);
+    }
+
+    private void OnDisable()
+    {
+        joyStick_Group.alpha = 0;
     }
 }

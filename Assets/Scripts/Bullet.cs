@@ -9,11 +9,13 @@ public class Bullet : MonoBehaviour
     [SerializeField] float speed;
     [SerializeField] float maxTimer = 1;
     [SerializeField] ParticleSystem[] ps_Hits;
+    [SerializeField] ParticleSystem ps_Bullet;
     WaitForSeconds wfs05sec = new WaitForSeconds(0.5f);
+    WaitForSeconds wfs01sec = new WaitForSeconds(0.1f);
 
     bool isGoing = false;
     bool isEffectOn = false;
-    Collider myColider;
+    public Collider myColider;
     public Action stopBullet;
 
     private void Awake()
@@ -34,6 +36,8 @@ public class Bullet : MonoBehaviour
             transform.position = gunPos.position;
 
             float timer = 0;
+            ps_Bullet.Play();
+            SoundManager.Instance.PlaySound(SoundList.Shot);
             while (timer < maxTimer)
             {
                 yield return null;
@@ -48,14 +52,15 @@ public class Bullet : MonoBehaviour
 
     IEnumerator Effect_EnemyHitON(Transform enemyTr)
     {
-        yield return new WaitForSeconds(0.1f);
+        yield return wfs01sec;
 
 
         Vector3 rotdir = enemyTr.position - transform.position; // get angle 함수 제작
-        // 왜 되는가? 3D 좌표에서랑 2D 좌표에서의 아크 탄젠트에 넣어줘야하는 값이 다르기 때문에ㅎ
         float angle = Mathf.Atan2(rotdir.x, rotdir.z) * Mathf.Rad2Deg;
         Quaternion targetRot = Quaternion.AngleAxis(angle - 180, Vector3.up);
         Vector3 pos = new Vector3(enemyTr.position.x, enemyTr.position.y + 0.5f, enemyTr.position.z);
+        SoundManager.Instance.PlayOneShot(SoundList.Blood);
+        SoundManager.Instance.PlayOneShot(SoundList.Explosion);
 
         foreach (var item in ps_Hits)
         {
@@ -69,11 +74,11 @@ public class Bullet : MonoBehaviour
         }
 
         yield return wfs05sec;
-
+        // ps_Bullet.trails.
         foreach (var item in ps_Hits)
         {
             item.transform.position = gunPos.position;
-            item.gameObject.SetActive(false);
+            // item.gameObject.SetActive(false);
         }
     }
 
@@ -82,17 +87,16 @@ public class Bullet : MonoBehaviour
     {
         if (other.gameObject.layer == 8)
         {
+            myColider.enabled = false;
             var enemy = other.transform.root;
 
             StartCoroutine(Effect_EnemyHitON(other.transform));
-            myColider.enabled = false;
             var weaponDmg = UnityEngine.Random.Range(10, 21);
             Vector3 rotdir = enemy.position - transform.position;
-
             enemy.GetComponent<Enemy>().GotHit(weaponDmg, rotdir);
-
             transform.position = gunPos.position;
-            this.enabled = false;
+            // this.enabled = false;
+            // this.gameObject.SetActive(false);
         }
     }
 }

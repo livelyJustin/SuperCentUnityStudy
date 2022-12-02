@@ -16,8 +16,8 @@ public class Enemy : MonoBehaviour
     private Transform spine;
     private Collider col;
     private int hash_Hit;
+    private int hash_Walk;
     private bool isDead = false;
-    [SerializeField] ParticleSystem ps_Blood;
     [SerializeField] float power = 0.001f;
     // RagDoll
     private Rigidbody[] rbs;
@@ -51,6 +51,7 @@ public class Enemy : MonoBehaviour
         col.enabled = true;
 
         hash_Hit = Animator.StringToHash("Hit");
+        hash_Walk = Animator.StringToHash("Walk");
     }
 
     public void GotHit(float dmg, Vector3 dir)
@@ -60,6 +61,7 @@ public class Enemy : MonoBehaviour
             HP -= dmg;
             // print("체력: " + HP);
             // print("dir: " + dir);
+            enemyAnimator.SetBool(hash_Walk, false);
             enemyAnimator.SetTrigger(hash_Hit);
 
             agent.isStopped = true;
@@ -70,6 +72,8 @@ public class Enemy : MonoBehaviour
         }
     }
 
+    [SerializeField] float fadeDownSpeed;
+    [SerializeField] float canvasFadeSpeed;
     IEnumerator DownHP(float dmg)
     {
         canvasGroup.alpha = 1;
@@ -83,7 +87,7 @@ public class Enemy : MonoBehaviour
         {
             yield return null;
             timer += Time.deltaTime;
-            img_HP_Red.fillAmount = Mathf.Lerp(img_HP_Red.fillAmount, tagetValue, 0.005f); // deltatime 값이 고려되지 않아 프레임 따라 속도가 달라질 수 있음
+            img_HP_Red.fillAmount = Mathf.Lerp(img_HP_Red.fillAmount, tagetValue, fadeDownSpeed * Time.deltaTime); // deltatime 값이 고려되지 않아 프레임 따라 속도가 달라질 수 있음
         }
         // agent.isStopped = false;
 
@@ -96,7 +100,7 @@ public class Enemy : MonoBehaviour
             {
                 yield return null;
                 timer += Time.deltaTime;
-                canvasGroup.alpha = Mathf.Lerp(canvasGroup.alpha, 0, 0.02f);
+                canvasGroup.alpha = Mathf.Lerp(canvasGroup.alpha, 0, canvasFadeSpeed * Time.deltaTime);
             }
         }
     }
@@ -114,6 +118,7 @@ public class Enemy : MonoBehaviour
         SetChildRigidbody(false);
         SetChildColider(true);
         spineRb.AddForce(dir * power);
+        spineRb.AddTorque(Vector3.up * power);
 
         EnemyManager.instance.CountDownEnemy();
         StartCoroutine(FadeDown());
@@ -144,12 +149,19 @@ public class Enemy : MonoBehaviour
 
     private void Update()
     {
-        if (!isDead && !agent.pathPending && !agent.hasPath)
+        if (agent.pathPending)
+            return;
+
+        if (agent.hasPath)
+            return;
+
+        if (isDead)
+            return;
+
+        if (GetRandomPos(transform.position, 5f, out nextPos))
         {
-            if (GetRandomPos(transform.position, 5f, out nextPos))
-            {
-                agent.SetDestination(nextPos);
-            }
+            agent.SetDestination(nextPos);
+            enemyAnimator.SetBool(hash_Walk, true);
         }
     }
 
